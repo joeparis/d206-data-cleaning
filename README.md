@@ -1,2 +1,7 @@
 # d206-data-cleaning
-D206 Data Cleaning
+
+## Introduction to Importing Data in Python
+
+### D206 Data Cleaning
+
+Notes and experiments from the course.
