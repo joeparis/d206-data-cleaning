@@ -1,7 +1,0 @@
-setwd("/home/joe/dev/wgu/d206-data-cleaning")
-# install.packages('tidyverse')
-# install.packages("languageserver")
-library('tidyverse')
-library('languageserver')
-df <- read_csv("boston_housing_data.csv")
-head(df,5)
