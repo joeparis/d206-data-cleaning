@@ -250,3 +250,9 @@ rsconnect/
 # End of https://www.toptal.com/developers/gitignore/api/r
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode
+
+### Quarto Artifacts ###
+*html
+*.css
+*.js
+bootstrap*
