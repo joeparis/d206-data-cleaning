@@ -1,0 +1,151 @@
+---
+title: "DSPR Chapter 2"
+---
+
+## Exercises
+
+### Working with the Data
+
+15. Import the `ggplot2` package. Make sure you both install and open the package.
+
+```{r}
+pacman::p_load("tidyverse")
+```
+
+16. Import the `bank_marketing_training` data set and name it `bank_train`.
+
+```{r}
+bank_train <- read_csv("bank_marketing_training")
+```
+
+17. Create a contingency table of the variables `response` and `previous_outcome` from the `bank_train` data set. Do not save the output from the code.
+
+```{r}
+table(bank_train$response, bank_train$previous_outcome)
+```
+
+18. Rerun the code from the previous exercise, this time saving the output as `t1`.
+
+```{r}
+t1 <- table(bank_train$response, bank_train$previous_outcome)
+```
+
+19. After saving the output in the previous exercise, display the output using the name of the saved output.
+
+```{r}
+t1
+```
+
+20. Save the contingency table under a different name. This time, use your last name and favorite number as the name; for example, `larose42`.
+
+```{r}
+paris37 <- table(bank_train$response, bank_train$previous_outcome)
+```
+
+21. Save the first nine records of the bank_train data set as their own data frame.
+
+```{r}
+first_nine <- head(bank_train, n = 9)
+```
+
+22. Save the age and marital records of the `bank_train` data set as their own data frame.
+
+```{r}
+marital_records <- data.frame(
+  age = bank_train$age,
+  "marital status" = bank_train$marital
+)
+# marital_records
+```
+
+23. Save the first three records of the `age` and `marital` variables as their own data frame.
+
+```{r}
+a <- head(bank_train$age, n = 3)
+m <- head(bank_train$marital, n = 3)
+cnames <- c("age", "marital.status")
+df1 <- data.frame(age = a, marital.status = m)
+colnames(df1) <- cnames
+
+df2 <- data.frame(
+  age = head(bank_train$age, n = 3),
+  "marital status" = head(bank_train$marital, n = 3)
+)
+```
+
+### Hands-On Analysis
+
+24. Import the `adult_ch3_training` data set using the “Heading: Yes” setting. Rename the data set `adult` once it is imported.
+
+```{r}
+adult <- read_csv("adult_ch3_training")
+```
+
+25. Write a comment explaining the change in the data set name.
+
+```{r}
+# nope
+```
+
+26. Import the `rpart` package. Make sure you both install and open the package.
+
+```{r}
+pacman::p_load("rpart")
+```
+
+27. Create a contingency table of `workclass` and `sex.` Save the output as `table01`.
+
+```{r}
+table01 <- table(adult$workclass, adult$sex)
+table01
+```
+
+28. Create a contingency table of `sex` and `marital status`. Save the output as `table02`.
+
+```{r}
+table02 <- table(adult$sex, adult$`marital-status`)
+table02
+```
+
+29. Display the `sex` and `workclass` values of the person in the first record. What cell of `table01` do they belong to? How many other records in the data set have the same `sex` and `workclass` values?
+
+```{r}
+adult[1, c(6, 2)]
+```
+This person belongs to row 7, column 2 of `table01`. There are 992 people total in this category so there are 991 other people who belong to it.
+
+30. Display the `sex` and `marital status` values of the people in records 6–10. Which cells of `table02` do they belong to? How many other records in the data set have the same combinations of `sex` and `marital status` values?
+
+```{r}
+adult[6:10, c(6, 4)]
+```
+These people belong to row 2, columns 3 (for the first 4 people) and 1 (for the remaining 1 person). There are 6,805 people in total who have this combination of `sex` and `marital status` so 6,800 others belong in the same categories.
+
+31. Create a new data set that has only records whose `marital status` is “Married‐civ‐spouse” and name the data set `adultMarried`.
+
+```{r}
+adultMarried <- adult[adult$`marital-status` == "Married-civ-spouse", ]
+```
+
+32. Recreate the contingency table of `sex` and `workclass` using the `adultMarried` data set. What differences do you notice between the sexes?
+
+```{r}
+table03 <- table(adultMarried$workclass, adultMarried$sex)
+table03
+```
+There are almost 8 times as many married males as there are married females. It appears roughly 15% of females are married while 61% of males are.
+
+33. Create a new data set that has only records whose `age` value is greater than 40. Name the new data set `adultOver40`.
+
+```{r}
+adultOver40 <- adult[adult$age > 40, ]
+adultOver40
+```
+
+34. Recreate the contingency table of `sex` and `marital status` using the `adultOver40` data set. What differences do you notice?
+
+```{r}
+table04 <- table(adultOver40$sex, adultOver40$`marital-status`)
+table04
+```
+There are no respondents over 40 who are "Married-AF-spouse".
