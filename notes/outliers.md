@@ -1,10 +1,10 @@
-# D206
-
-## Outliers
+# Outliers
 
 In order for an outlier to exist, there must me some measure of distance between the items.
 
 This is intrinsic to numerical data types.
+
+## Detection Methods
 
 Detection methods include:
 

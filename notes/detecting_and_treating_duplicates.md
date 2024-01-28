@@ -1,8 +1,6 @@
-# D206
+# Detecting & Treating Duplicates
 
-## Detecting & Treating Duplicates
-
-### Python
+## Python
 
 * `duplicated()` returns a pandas.Series of booleans indicating if the row is a duplicate. By default, all columns are used to determine if the row is duplicated.
 * `value_counts()` can be used to determine the number of duplicate records in the data set (`True` from calling `duplicated`).
@@ -14,7 +12,7 @@
 1. `df = df.drop_duplicates()` to drop all duplicates.
 1. `df.duplicated().value_counts()` verify that the duplicates were removed.
 
-### R
+## R
 
 * `.duplicated()` retruns ___ with duplicated rows marked `TRUE`. By default, all columns are used to determine if the row is duplicated.
 * `sum(duplicated)` will count the number of duplicated rows.
@@ -58,7 +56,7 @@ You can do visualizations with the `visdat` library. This visualization will als
 vis_miss(df)
 ```
 
-### Treating Missing Values
+## Treating Missing Values
 
 #### Deletion
 
@@ -78,7 +76,7 @@ Limitations:
 * Loss of important information/insights
 * Reduced sample size
 
-#### Imputation
+### Imputation
 
 Imputation is a technique used for replacing missing data with a reasonable value (guesstimate). Used because deleting data from the data set is not always feasible as it reduces the size of the data set and raises concerns about biasing the data set and incorrect analysis.
 
