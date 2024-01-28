@@ -1,0 +1,567 @@
+---
+title: "Chapter 3 Data Preparation"
+format: html
+---
+
+```{r}
+pacman::p_load("tidyverse")
+```
+
+## The Problem Understanding Phase
+
+It's important to know *what* questions you are trying to answer.
+
+### Objectives
+
+1.  Learn about potential customers. What are the defining characteristics of those who both do and do not bank with us?
+2.  Develop a way to identify customers who are likely to bank with us in the future. This will save time and money by preventing our chasing customers who will likely not choose us in the future.
+
+### Translating These Objectives into a Data Science Problem
+
+How do we use DS to accomplish our objectives?
+
+1.  There are many ways to learn about potential customers.
+    1.  Exploratory Data Analysis to find relationships among variables. (ex. a histogram of age overlaid with responses to a yes/no question to determine if age has a bearing on customer response.)
+    2.  Use clustering to find any potential natural groupings within potential customers. (ex. group younger/better-educated vs older/less-educated and see if these clusters differ in their response to our marketing.)
+    3.  Use association rules to see if there are useful relationships between subsets of records. (ex. if the rule, "if cell phone, then response = "yes" we could focus our efforts on only those potential customers who have cell phones.)
+2.  Develop models to identify likely positive respondents. Note that because the yes/no response is categorical we can use classification models but *not* estimation models.
+    1.  Develop the best models we can using the following algorithms:
+        -   decision trees
+        -   random forests
+        -   naive Bayes classification
+        -   neural networks
+        -   logistic regression
+    2.  Evaluate each model on some predetermined criteria (such as the cost of misclassification). and compare the models against each other.
+    3.  Consult with management regarding our findings.
+
+## The Data Preparation Phase
+
+Every data set has its own, unique needs in terms of cleaning and preparation. In this chapter we will focus on:
+
+-   adding an index field
+-   changing misleading field values
+-   re-expressing categorical data as numeric
+-   standardizing the numeric fields
+-   identifying outliers
+
+## Adding an Index Field
+
+Not all data sets include a natural ID or indexing variable. It's useful to add on to:
+
+1.  have some way to identify each observation
+2.  be able to restore the original ordering of the data set
+
+```{r}
+bank_train <- read_csv("data/bank_marketing_training")
+```
+
+We first need to know how many observations there are in our data set. `dim()` will get (or set) the dimensions of an object.
+
+```{r}
+n <- dim(bank_train)[1]
+```
+
+Next, we create a new variable to serve as the index. I prefer my index variable to be in the first column.
+
+```{r}
+# # without tidyverse
+# bank_train <- cbind( index = c(1:n), bank_train)
+
+# using dplyr
+bank_train <- bank_train %>%
+  mutate(index = c(1:n), .before = "age")
+
+head(bank_train)
+```
+
+## Changing Misleading Field Values
+
+The variable *days_since_previous* is a count of the number of days since the client was last contacted. The field is numeric so we can use a histogram to visualize and sanity check it.
+
+```{r}
+bank_train %>%
+  ggplot(aes(x = days_since_previous)) +
+  geom_histogram() +
+  labs(title = "Histogram of days_since_previous") +
+  ylab("frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+We find that *many* of the values are near 1000 (999 to be exact). After some investigation we discover that 999 was used as a sentinel to indicate that customer had never been contacted.
+
+We will change the value *999* to *missing*.
+
+```{r}
+# bank_train$days_since_previous <- ifelse(bank_train$days_since_previous == 999, NA, bank_train$days_since_previous)
+
+bank_train <- bank_train %>%
+  mutate(days_since_previous = ifelse(bank_train$days_since_previous == 999, NA, days_since_previous))
+```
+
+And thus...
+
+```{r}
+bank_train %>%
+  ggplot(aes(x = days_since_previous)) +
+  geom_histogram() +
+  labs(title = "Histogram of days_since_previous", subtitle = "(w/missing values removed)") +
+  ylab("frequency") +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5))
+```
+
+## Re-Expression of Categorical Data as Numeric
+
+```{r}
+bank_train %>%
+  ggplot(aes(y = education)) +
+  geom_bar()
+```
+
+Because the *education* variable is categorical there is no inherent ordering of the values. In other words, R can't know that *university.degree* represents more education than *basic.4y*. To provide this information to our algorithms we transform the data into numeric values.
+
+| Categorical Value   | Numeric Value |
+|---------------------|---------------|
+| illiterate          | 0             |
+| basic.4y            | 4             |
+| basic.6y            | 6             |
+| basic.9y            | 9             |
+| high.school         | 12            |
+| professional.course | 12            |
+| university.degree   | 16            |
+| unknown             | missing       |
+
+```{r}
+# # create numeric values using plyr
+# pacman::p_load("plyr")
+# 
+# edu.num <- revalue(
+#   x = bank_train$education,
+#   replace = c(
+#     "illiterate" = 0,
+#     "basic.4y" = 4,
+#     "basic.6y" = 6,
+#     "basic.9y" = 9,
+#     "high.school" = 12,
+#     "professional.course" = 12,
+#     "university.degree" = 16,
+#     "unknown" = NA
+#   )
+# )
+
+# using forcats
+edu.num <- fct_recode(bank_train$education,
+  "0" = "illiterate",
+  "4" = "basic.4y",
+  "6" = "basic.6y",
+  "9" = "basic.9y",
+  "12" = "high.school",
+  "12" = "professional.course",
+  "16" = "university.degree",
+  "NA" = "unknown"
+)
+```
+
+`revalue()` replaces values in the `x` input according to the rules provided in the `replace` argument.
+
+*edu.num* is not numeric, so convert it.
+
+```{r}
+# # using the output from plyr above
+# # this code resulted in the whole column being filled with NA
+# bank_train$education_numeric <- as.numeric(levels(edu.num))[edu.num]
+
+# using dplyr
+bank_train <- bank_train %>%
+  mutate(education_numeric = as.numeric(levels(edu.num))[edu.num], .after = "education")
+
+head(bank_train)
+```
+
+`levels()` gets the factor levels from *edu.num*, which are strings. `as.numeric()` converts them to numbers (of course). The new values stored back in *edu.num* which is then used to make the *education_numeric* column.
+
+Now that *edu.num* is numeric, we can plot it.
+
+```{r}
+bank_train %>%
+  ggplot(aes(x = education_numeric)) +
+  geom_histogram(fill = "blue", color = "black") +
+  labs(
+    title = "Histogram of Education Numeric",
+    x = "Education Numeric",
+    y = "Frequency"
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+## Standardizing the Numeric Fields
+
+Certain algorithms perform better when the numeric fields used as their input have been standardized so that the field's mean equals 0 and its standard deviation = 1 as follows:
+
+$$
+z = Standardized Value = \frac{x-\overline{x}}{s} = \frac{Data value - mean}{Standard deviation}
+$$
+
+Positive z-values represent the number of standard deviations above the mean, negative as those below.
+
+```{r}
+bank_train <- bank_train %>%
+  mutate(age_z = scale(age) %>% as.numeric(), .after = "age")
+  
+# rename(bank_train, age_z = age_z)
+head(bank_train)
+```
+
+`scale()` centers a variable by subtracting its mean, dividing it by the standard deviation, or both (the default behavior).
+
+## Identifying Outliers
+
+Once the numeric fields are normalized we can use the z-values to identify outliers.
+
+For example, consider a theoretical field named *number_of_contacts* representing the number of times a potential customer was contacted during the marketing campaign. The mean number of contacts per customer is 2.6 with a standard deviation of 2.7. We obtain the standardized field as follows:
+
+$$
+number\_of\_contacts\_z = \frac{number\_of\_contacts - 2.6}{2.7}
+$$
+
+A rough rule of thumb is any data value is an outlier if its z-value is greater than 3 or less than -3.
+
+You should consult with your client as to how to handle outliers. **They should not be removed automatically, nor changed.** These unusual values may provide valuable insight into the data.
+
+We'll use the `age-z` variable we created earlier. To isolate observations of interest:
+
+``` r
+bank_train[ rows of interest, ]
+```
+
+```{r}
+bank_outliers <- bank_train[ which(bank_train$age_z < -3 | bank_train$age_z > 3), ]
+```
+
+`which()` returns the indices of rows that meet the specified condition. We use these indicies to select the rows meeting our criteria from *bank_train* and save this new tibble as *bank_outliers*.
+
+```{r}
+bank_train_sort <- bank_train %>%
+  arrange(desc(age_z))
+
+head(bank_train_sort)
+```
+
+```{r}
+m <- mean(bank_train$age)
+s <- sd(bank_train$age)
+print(str_interp("Mean age is $[.1f]{m}"))
+print(str_interp("Standard deviation is $[.1f]{s}"))
+print(str_interp("Outliers start at age $[.1f]{m + 3 * s}"))
+```
+
+## Exercises
+
+### Working With the Data
+
+Working the exercises without looking at my notes.
+
+```{r}
+pacman::p_load("tidyverse")
+bank_train <- read_csv("data/bank_marketing_training")
+```
+
+11. Derive an index field and add it to the data set.
+
+```{r}
+n <- dim(bank_train)[1]
+bank_train <- bank_train %>%
+  mutate(index = c(1:n), .before = "age")
+
+head(bank_train)
+```
+
+12. For the *days_since_previous* field, change the field value *999* to the appropriate code for missing values.
+
+```{r}
+bank_train <- bank_train %>%
+  mutate(days_since_previous = ifelse(days_since_previous == 999, NA, days_since_previous))
+
+head(bank_train)
+```
+
+13. For the *education* field, reexpress the field values as the numeric values shown in Table 3.1.
+
+| Categorical Value   | Numeric Value |
+|---------------------|---------------|
+| illiterate          | 0             |
+| basic.4y            | 4             |
+| basic.6y            | 6             |
+| basic.9y            | 9             |
+| high.school         | 12            |
+| professional.course | 12            |
+| university.degree   | 16            |
+| unknown             | missing       |
+
+: Table 3.1
+
+```{r}
+ed_factors <- fct_recode(bank_train$education,
+    "0" = "illiterate",
+    "4" = "basic.4y",
+    "6" = "basic.6y",
+    "9" = "basic.9y",
+    "12" = "high.school",
+    "12" = "professional.course",
+    "16" = "university.degree",
+    "NA" = "unknown"
+  )
+
+bank_train <- bank_train %>%
+  mutate(ed_fct = as.numeric(levels(ed_factors))[ed_factors], .after = "education")
+
+head(bank_train)
+```
+
+14. Standardize the field *age*. Print out a list of the first 10 records, including the variables *age* and *age_z*.
+
+```{r}
+bank_train <- bank_train %>%
+  mutate(age_z = scale(age) %>% as.numeric(), .after = "age")
+
+# head(bank_train)
+bank_train[1:10, c(1:3,6:7)]
+```
+
+15. Obtain a listing of all records that are outliers according to the field *age_z*. Print out a listing of the 10 largest *age_z* values.
+
+```{r}
+outliers <- bank_train[which(bank_train$age_z < -3 | bank_train$age_z > 3), ]
+
+head(outliers %>%
+  arrange(desc(age_z)), n = 10)
+```
+
+16. For the job field, combine the jobs with less than 5% of the records into a field called *other*.
+
+```{r}
+job_frequency <- bank_train %>%
+  group_by(job) %>%
+  summarize(freq = n()) %>%
+  arrange(desc(freq))
+
+threshold <- nrow(bank_train) * 0.05
+keep_jobs <- job_frequency %>%
+  filter(freq > threshold)
+
+bank_train <- bank_train %>%
+  mutate(job = fct_other(job, keep = keep_jobs$job, other_level = "other"))
+
+head(bank_train)
+```
+
+17. Rename the *default* predictor to *credit_default*.
+
+```{r}
+bank_train <- bank_train %>%
+  rename(credit_default = default)
+
+head(bank_train)
+```
+
+18. For the variable *month*, change the field values to 1–12, but keep the variable as categorical.
+
+```{r}
+mapping <- c(
+  "jan" = 1, "feb" = 2, "mar" = 3, "apr" = 4,
+  "may" = 5, "jun" = 6, "jul" = 7, "aug" = 8,
+  "sep" = 9, "oct" = 10, "nov" = 11, "dec" = 12
+)
+
+# the !!! operator unquotes the list of values, neat!
+bank_train <- bank_train %>%
+  mutate(month = recode(month, !!!mapping))
+
+head(bank_train)
+```
+
+19. Do the following for the *duration* field.
+
+1.  Standardize the variable.
+2.  Identify how many outliers there are and identify the most extreme outlier.
+
+```{r}
+bank_train <- bank_train %>%
+  mutate(duration_z = scale(duration) %>% as.numeric(), .after = "duration")
+
+duration_outliers <- bank_train[ which(bank_train$duration_z < -3 | bank_train$duration_z > 3), ]
+
+dim(duration_outliers)[1]
+
+duration_outliers <- duration_outliers %>%
+  arrange(desc(duration_z))
+
+duration_outliers[1, ]
+
+head(duration_outliers)
+```
+
+20. Do the following for the *campaign* field.
+
+1.  Standardize the variable.
+2.  Identify how many outliers there are and identify the most extreme outlier.
+
+```{r}
+bank_train <- bank_train %>%
+  mutate(campaign_z = scale(campaign) %>% as.numeric(), .after = "campaign")
+
+campaign_outliers <- bank_train[ which(bank_train$campaign_z < -3 | bank_train$campaign_z > 3), ]
+
+dim(campaign_outliers)[1]
+
+campaign_outliers <- campaign_outliers %>%
+  arrange(desc(campaign_z))
+
+campaign_outliers[1, ]
+
+head(campaign_outliers)
+```
+
+### Hands-On Analysis
+
+```{r}
+pacman::p_load("tidyverse")
+nutrition = read_csv("data/nutrition_subset")
+```
+
+21. The elements in the data set are food items of various sizes, ranging from a teaspoon of cinnamon to an entire carrot cake.
+
+  1. Sort the data set by the saturated fat (*saturated_fat*) and produce a listing of the five food items highest in saturated fat.
+  2. Comment on the validity of comparing food items of different sizes.
+
+```{r}
+nutrition <- nutrition %>%
+  arrange(desc(saturated_fat))
+
+head(nutrition, n = 5)
+```
+You cannot compare food items of different sizes in a meaningful way. To perform a valid comparison you need to compare consistent units of foods, for example, per gram.
+
+22. Derive a new variable, *saturated_fat_per_gram*, by dividing the amount of saturated fat by the weight in grams.
+
+  1. Sort the data set by *saturated_fat_per_gram* and produce a listing of the five food items highest in saturated fat per gram.
+  2. Which food has the most saturated fat per gram?
+  
+```{r}
+nutrition <- nutrition %>%
+  mutate(saturated_fat_per_gram = saturated_fat / weight_in_grams, .after = saturated_fat) %>%
+  arrange(desc(saturated_fat_per_gram))
+
+head(nutrition, n = 5)
+
+print("Salted butter has the most saturated fat per gram.")
+```
+
+23. Derive a new variable, *cholesterol_per_gram*.
+
+  1. Sort the data set by *cholesterol_per_gram* and produce a listing of the five food items highest in cholesterol fat per gram.
+  2. Which food has the most cholesterol fat per gram?
+
+```{r}
+nutrition <- nutrition %>%
+  mutate(cholesterol_per_gram = cholesterol / weight_in_grams, .after = cholesterol) %>%
+  arrange(desc(cholesterol_per_gram))
+
+head(nutrition, n = 5)
+
+print("Egg yolks has the highest cholesterol per gram.")
+```
+
+24. Standardize the field *saturated_fat_per_gram*. Produce a listing of all the food items that are outliers at the high end of the scale. How many food items are outliers at the low end of the scale?
+
+```{r}
+nutrition <- nutrition %>%
+  mutate(saturated_fat_per_gram_z = scale(saturated_fat_per_gram) %>% as.numeric(), .after = saturated_fat_per_gram)
+
+fat_outliers <- nutrition[ which(nutrition$saturated_fat_per_gram_z < -3 | nutrition$saturated_fat_per_gram_z > 3), ]
+
+nrow(fat_outliers[ which(fat_outliers$saturated_fat_per_gram_z > 3), ])
+nrow(fat_outliers[ which(fat_outliers$saturated_fat_per_gram_z < -3), ])
+
+# fat_outliers
+```
+
+25. Standardize the field *cholesterol_per_gram*. Produce a listing of all the food items that are outliers at the high end of the scale.
+
+```{r}
+nutrition <- nutrition %>%
+  mutate(cholesterol_per_gram_z = scale(cholesterol_per_gram) %>% as.numeric(), .after = cholesterol_per_gram)
+
+cholesterol_outliers <- nutrition[ which(nutrition$cholesterol_per_gram_z < -3 | nutrition$cholesterol_per_gram_z > 3), ] %>%
+  arrange(desc(cholesterol_per_gram_z))
+  
+print(cholesterol_outliers[ which(cholesterol_outliers$cholesterol_per_gram_z > 3), ])
+```
+
+
+```{r}
+pacman::p_load("tidyverse")
+adult = read_csv("data/adult_ch3_training")
+```
+
+26. Add a record index field to the data set.
+
+```{r}
+adult <- adult %>%
+  mutate(index = c(1:nrow(adult)), .before = 1)
+
+head(adult)
+```
+
+27. Determine whether any outliers exist for the *education* field.
+
+```{r}
+adult <- adult %>%
+  mutate(education_z = scale(education) %>% as.numeric(), .after = education)
+
+education_outliers <- adult[ which(adult$education_z < -3 | adult$education_z > 3), ]
+
+if (nrow(education_outliers) > 0) {
+  print(str_interp("There are ${nrow(education_outliers)} outliers in the data set."))
+} else {
+  print("There are no outliers in the data set.")
+}
+
+head(adult)
+```
+
+28. Do the following for the *age* field.
+
+  1. Standardize the variable.
+  2. Identify how many outliers there are and identify the most extreme outlier.
+  
+```{r}
+adult <- adult %>%
+  mutate(age_z = scale(age) %>% as.numeric(), .after = age)
+
+age_outliers <- adult[ which(adult$age_z < -3 | adult$age_z > 3), ] %>%
+  arrange((desc(age)))
+
+nrow(age_outliers)
+
+head(age_outliers, n = 1)
+```
+
+29. Derive a flag for *capital‐gain*, called *capital‐gain‐flag*, which equals 0 for capital gain equals zero, and 1 otherwise.
+
+```{r}
+adult <- adult %>%
+  mutate(`capital-gain-flag` = ifelse(`capital-gain` == 0, 0, 1), .after = `capital-gain`)
+```
+
+30. Age anomaly? Select only records with age at least 80. Construct a histogram of age. Explain what you see in one sentence and why it is like that in another sentence.
+
+```{r}
+eighty_plus <- adult %>%
+  filter(age >= 80)
+
+eighty_plus %>%
+  ggplot(aes(x = age)) +
+  geom_histogram()
+```
+
+The histogram shows an uneven distribution of ages with significantly many equal to 90. It's possible that any age greater than 90 was entered as 90 due to either human or technological error.
