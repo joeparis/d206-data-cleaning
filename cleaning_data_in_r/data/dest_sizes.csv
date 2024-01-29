@@ -1,0 +1,5 @@
+dest_size, passengers_per_day
+Small, 0-20K
+Medium, 20K-70K
+Large, 70K-100K
+Hub, 100K+

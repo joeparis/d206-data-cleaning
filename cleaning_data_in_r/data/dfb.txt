@@ -1,0 +1,6 @@
+id                name      zip  state
+ 1   "Jerome A. Yates"  "11743"   "NY"
+ 2  "Garrison, Brenda"  "08611"   "NJ"
+ 3     "Keaton Snyder"  "15020"   "PA"
+ 4    "Stuart, Bert F"  "12211"   "NY"
+ 5       "Hayley Peck"  "19134"   "PA"

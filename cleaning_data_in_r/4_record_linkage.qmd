@@ -1,0 +1,695 @@
+---
+title: "4_record_linkage"
+format: html
+---
+
+Record linkage is a powerful technique used to merge multiple datasets together, used when values have typos or different spellings. In this chapter, you'll learn how to link records by calculating the similarity between strings—you’ll then use your new skills to join two restaurant review datasets into one clean master dataset.
+
+## Comparing strings
+
+Edit distance measures how different two strings are based on the four basic edits:
+
+-   insertion
+-   deletion
+-   substitution
+-   transposition
+
+Minimum edit distance is the *fewest* number of edits needed to change one string into another.
+
+For example:
+
+-   to turn "dog" into "dogs" you need to **insert** an "s" at the end resulting in an edit distance of 1
+-   to turn "bath" into "bat" you need to **delete** the "h" at the end resulting in an edit distance of 1
+-   to turn "cats" into "rats" you need to **substitute** the "c" with an "r" resulting in an edit distance of 1
+-   to turn "sign" into "sign" you need to **transpose** the "g" and the "n" resulting in an edit distance of 1
+
+To turn "baboon" into "typhoon" you:
+
+|                                          |     |       |       |       |     |     |     |
+|---------|:-------:|:-------:|:-------:|:-------:|:-------:|:-------:|:-------:|
+|                                          |     |   b   |   a   |   b   |  o  |  o  |  n  |
+| 1\. **substitute** "t" for the first "b" |     | **t** |   a   |   b   |  o  |  o  |  n  |
+| 2\. **substitute** "y" for "a"           |     |   t   | **y** |   b   |  o  |  o  |  n  |
+| 3\. **substitute** "p" for "b"           |     |   t   |   y   | **p** |  o  |  o  |  n  |
+| 4\. **insert** "h" after "p"             |  t  |   y   |   p   |   h   |  o  |  o  |  n  |
+
+**Edit distance: 4**
+
+There are multiple algorithms for computing edit distance, each does so a little differently.
+
+-   the *Damerau-Levenshtein* distance is what we just did.
+-   the *Levenshtein distance* does not count transposition as a single action - instead, it counts as 2: a deletion and an insertion.
+-   the *Longest Common Subsequence distance* (LCS) considers only insertion and deletion as actions.
+-   *Jaro-Winkler distance*, *Jaccard distance*, and others...
+
+### String distance in R
+
+```{r}
+pacman::p_load("stringdist")
+
+stringdist("baboon", "typloon", method = "dl")
+```
+
+#### Other methods
+
+```{r}
+# LCS
+stringdist("baboon", "typloon", method = "lcs")
+```
+
+```{r}
+# Jaccard  (on a scale of 0 to 1, closer to 0 = similar)
+stringdist("baboon", "typloon", method = "jaccard")
+```
+
+### Comparing strings to clean data
+
+In chapter 2 we collapsed multiple categories into one manually:
+
+-   `"EU"`, `"eur"`, `"Europ"`, --\> `"Europe"`
+
+But what if there are too many to do so?
+
+-   `"EU"`, `"eur"`, `"Europ"`, `"Europa"`, `"Erope"`, `"Evropa"`, ... --\> `"Europe"`?
+
+Use string distance to collapse them!
+
+```{r}
+survey <- data.frame(
+  city = c("chicgo", "los angles", "chicogo", "new yrk", "new yoork", "seatttle", "losangeles", "seeatle"),
+  move_score = c(4, 4, 5, 5, 2, 3, 4, 2)
+)
+
+cities <- data.frame(city = c("new york", "chicago", "los angeles", "seattle"))
+
+pacman::p_load("fuzzyjoin")
+
+stringdist_left_join(survey, cities, by = "city", method = "dl")
+```
+
+You can use the `max_dist` argument to adjust how close you want strings to be in order to be considered the same.
+
+```{r}
+stringdist_left_join(survey, cities, by = "city", method = "dl", max_dist = 1)
+```
+
+Notice how "seeatle" wasn't close enough to any `city.y` value to be considered a match with `max_dist = 1`.
+
+#### Small distance, small difference
+
+In the video exercise, you learned that there are multiple ways to calculate how similar or different two strings are. Now you'll practice using the `stringdist` package to compute string distances using various methods. It's important to be familiar with different methods, as some methods work better on certain datasets, while others work better on other datasets.
+
+The `stringdist` package has been loaded for you.
+
+##### Instructions 1/4
+
+8 Calculate the Damerau-Levenshtein distance between `"las angelos"` and `"los angeles"`.
+
+```{r}
+# Calculate Damerau-Levenshtein distance
+stringdist("las angelos", "los angeles", method = "dl")
+```
+
+##### Instructions 2/4
+
+-   Calculate the Longest Common Substring (LCS) distance between `"las angelos"` and `"los angeles"`.
+
+```{r}
+# Calculate LCS distance
+stringdist("las angelos", "los angeles", method = "lcs")
+```
+
+##### Instructions 3/4
+
+-   Calculate the Jaccard distance between `"las angelos"` and `"los angeles"`.
+
+```{r}
+# Calculate LCS distance
+stringdist("las angelos", "los angeles", method = "jaccard")
+```
+
+##### Instructions 4/4
+
+**Question**
+
+Why is the LCS distance higher than the Damerau-Levenshtein distance between `"las angelos"` and `"los angeles"`?
+
+**Possible answers**
+
+1.  Damerau-Levenshtein distance is smaller because it's always a better method.
+2.  LCS distance only uses insertion and deletion, so it takes more operations to change a string to another.
+3.  LCS distance only uses insertion, deletion, and substitution, so it takes more operations to change a string to another
+
+**Answer**
+
+2.  LCS distance only uses insertion and deletion, so it takes more operations to change a string to another.
+
+#### Fixing typos with string distance
+
+In this chapter, one of the datasets you'll be working with, `zagat`, is a set of restaurants in New York, Los Angeles, Atlanta, San Francisco, and Las Vegas. The data is from Zagat, a company that collects restaurant reviews, and includes the restaurant names, addresses, phone numbers, as well as other restaurant information.
+
+The `city` column contains the name of the city that the restaurant is located in. However, there are a number of typos throughout the column. Your task is to map each `city` to one of the five correctly-spelled cities contained in the `cities` data frame.
+
+`dplyr` and `fuzzyjoin` are loaded, and `zagat` and `cities` are available.
+
+##### Instructions 1/2
+
+-   Count the number of each variation of `city` name in `zagat`.
+
+```{r}
+pacman::p_load("tidyverse")
+
+# the zagat I have access to is already clean, and I am remaking cities to match the exercise
+zagat <- read_rds("data/zagat.rds")
+cities <- data.frame(city_actual = c("atlanta", "los angeles", "new york", "las vegas", "san francisco"))
+
+zagat %>%
+  count(city)
+```
+
+##### Instructions 2/2
+
+-   Left join `zagat` and `cities` based on string distance using the `city` and `city_actual` columns.
+-   Select the `name`, `city`, and `city_actual` columns.
+
+```{r}
+zagat %>%
+  stringdist_left_join(cities, by = c("city" = "city_actual")) %>%
+  select(name, city, city_actual)
+```
+
+## Generating and comparing strings
+
+Here, we have two tables showing basketball game schedules from different television networks. If we want to get a full list of the basketball games being televised, we need to combine these two tables.
+
+However, some of the games in the second table are duplicates of games already listed in the first table. Since there's no consistent identifier between the two tables, a regular join won't work. This is where record linkage comes in.
+
+![](images/schedules.png){fig-align="left"}
+
+### What is record linkage?
+
+Record linkage involves linking data together that comes from multiple sources that don't share a common identifier, but contain data on the same entity.
+
+Starting with different data sets we generate possible matching rows, compare them to one another scoring them on similarity, then select the most likely pair.
+
+![](images/record_linkage.png){fig-align="left"}
+
+[reclin2](https://cran.r-project.org/web/packages/reclin2/index.html)
+
+[reclin2 introduction](https://cran.r-project.org/web/packages/reclin2/vignettes/introduction.html)
+
+### Generating pairs
+
+Given the following data frames, determine if any of the records in Table A are referring to the same person in Table B.
+
+```{r}
+df_a <- data.frame(
+  name = c("Christine M. Conner", "Keaton Z Snyder", "Arthur Potts", "Maia Collier", "Atkins, Alice W."),
+  zip = c("10456", "15020", "07799", "07960", "10603"),
+  state = c("NY", "PA", "NJ", "NJ", "NY")
+) %>%
+  rowid_to_column("id")
+
+df_b <- data.frame(
+  name = c("Jerome A. Yates", "Garrison, Brenda", "Keaton Snyder", "Stuart, Bert F", "Hayley Peck"),
+  zip = c("11743", "08611", "15020", "12211", "19134"),
+  state = c("NY", "NJ", "PA", "NY", "PA")
+) %>% rowid_to_column("id")
+```
+
+In order to determine whether there are any matches, compare every single row in Table A with every single row in Table B.
+
+![](images/all_pairs.png){fig-align="left"}
+
+```r
+library(reclin)
+pair_blocking(df_a, df_b)
+```
+
+`reclin` was removed crom CRAN on 2023-08-10.
+https://cran.r-project.org/web/packages/reclin/index.html
+
+We can use the `reclin2` package to generate these pairs.
+
+```{r}
+pacman::p_load("reclin2")
+
+# reclin2::pair generates every possible pair (like reclin::pair_blocking did)
+pair(df_a, df_b)
+```
+
+### Blocking
+
+This doesn't scale, so we limit to pairs with some variables in common. This technique is called *blocking*.
+
+```r
+reclin::pair_blocking(df_a, df_b, blocking_var = "state")
+```
+
+```{r}
+pair_blocking(df_a, df_b, on = "state")
+```
+
+### Comparing pairs
+
+Now that we have pairs, we need to compare them.
+
+```r
+reclin::pair_blocking(df_a, cf_b, blocking_var = "state") %>%
+  reclin::compare_pairs(by = "name", default_comparator = lcs())
+```
+
+### Comparing multiple columns
+
+```{r}
+pair_blocking(df_a, df_b, "state") %>%
+  compare_pairs(on = c("name", "zip"), default_comparator = cmp_lcs())
+```
+
+#### Pair blocking
+
+Zagat and Fodor's are both companies that gather restaurant reviews. The `zagat` and `fodors` datasets both contain information about various restaurants, including addresses, phone numbers, and cuisine types. Some restaurants appear in both datasets, but don't necessarily have the same exact name or phone number written down. In this chapter, you'll work towards figuring out which restaurants appear in both datasets.
+
+The first step towards this goal is to generate pairs of records so that you can compare them. In this exercise, you'll first generate all possible pairs, and then use your newly-cleaned `city` column as a blocking variable.
+
+`zagat` and `fodors` are available.
+
+##### Instructions 1/2
+
+-   Load the `reclin` package.
+-   Generate all possible pairs of records between the `zagat` and `fodors` datasets.
+
+```{r}
+zagat <- read_csv("data/zagat_dirty.csv")
+fodors <- read_csv("data/fodors_dirty.csv")
+
+# Generate all possible pairs
+# reclin::pair_blocking(zagat, fodors)
+pairs <- pair(zagat, fodors)
+
+print(pairs)
+```
+
+##### Instructions 2/2
+
+-   Use pair blocking to generate only pairs that have matching values in the `city` column.
+
+```{r}
+zagat <- read_csv("data/zagat_dirty.csv")
+fodors <- read_csv("data/fodors_dirty.csv")
+
+# Generate all possible pairs
+# reclin::pair_blocking(zagat, fodors, blocking_var = "city")
+pairs <- pair_blocking(zagat, fodors, on = "city")
+
+print(pairs)
+```
+
+#### Comparing pairs
+
+Now that you've generated the pairs of restaurants, it's time to compare them. You can easily customize how you perform your comparisons using the `by` and `default_comparator` arguments. There's no right answer as to what each should be set to, so in this exercise, you'll try a couple options out.
+
+`dplyr` and `reclin` are loaded and `zagat` and `fodors` are available.
+
+##### Instructions 1/2
+
+-   Compare `pairs` by name using `lcs()` distance.
+
+```{r}
+# reclin::pair_blocking(zagat, fodors, blocking_var = "city") %>%
+#   reclin::compare_pairs(by = "name", default_comparator = lcs())
+
+pairs <- pair_blocking(zagat, fodors, on = "city")
+
+pairs <- compare_pairs(pairs, on = "name", default_comparator = cmp_lcs())
+
+print(pairs)
+```
+
+##### Instructions 2/2
+
+-   Compare pairs by `name`, `phone`, and `addr` using `jaro_winkler()`.
+
+```{r}
+# reclin::pair_blocking(zagat, fodors, blocking_var = "city") %>%
+#   reclin::compare_pairs(by = c("name", "phone", "addr"), default_comparator = jaro_winkler())
+pairs <- pair_blocking(zagat, fodors, on = "city")
+
+pairs <- compare_pairs(pairs, on = c("name", "phone", "addr"), default_comparator = cmp_jarowinkler(), inplace = TRUE)
+
+print(pairs)
+```
+
+## Scoring and linking
+
+Now that we've created pairs of likely matches we need to score them.
+
+One way to do so is to add them together.
+
+```r
+pair_blocking(df_a, cf_b, blocking_var = "state") %>%
+  compare_pairs(by = "name", default_comparator = lcs()) %>%
+  score_simsum()
+```
+
+```{r}
+pair_blocking(df_a, df_b, on = "state") %>%
+  compare_pairs(on = c("name", "zip"), default_comparator = cmp_lcs()) %>%
+  score_simple("score", on = c("name", "zip")) %>%
+  arrange(.x, .y)
+```
+
+We find that the highest score is a combination or row 2 of df_a and row 3 of df_b, both of which refer to someone named Keaton Snyder.
+
+This doesn't take into account that having a similar name is a stronger indicator of sameness than, say, gender.
+
+### Scoring probabilistically
+
+Instead of summing, we can use a *probabilistic* way of scoring that weights the variables.
+
+```r
+reclin::pair_blocking(df_a, df_b, blocking_var = "state") %>%
+  compare_pairs(by = c("name", "zip"), default_comparator = lcs()) %>%
+  score_problink()
+```
+
+```{r}
+# score_simple seems to be the replacement for score_problink, need to tweak
+# w1, w0, and wna
+pair_blocking(df_a, df_b, on = "state") %>%
+  compare_pairs(on = c("name", "zip"), default_comparator = cmp_lcs()) %>%
+  score_simple("score",
+               on = c("name", "zip"),
+               w1 = c(name = 12, zip = 3),
+               w0 = c(name = -8.25, zip = -2),
+               wna = 0
+               ) %>%
+  arrange(.x, .y)
+
+m <- pair_blocking(df_a, df_b, on = "state") %>%
+  compare_pairs(on = c("name", "zip"), default_comparator = cmp_lcs()) %>%
+  problink_em(~ name + zip, data = .)
+
+pair_blocking(df_a, df_b, on = "state") %>%
+  compare_pairs(on = c("name", "zip"), default_comparator = cmp_lcs()) %>%
+  predict(m, pairs = ., add = TRUE)
+
+print(m)
+```
+
+The m-probability is the probability that two records concerning the same entity agree on the linkage variable; this means that the m-probability corresponds to the probability that there is an error in the linkage variables.
+
+The u-probability is the probability that two records belonging to different entities agree on a variable. For a variable with few categories (such as sex) this probability will be large, while for a variable with a large number of categories (such as last name) this probability will be small.
+
+We can use the m- and u-probabilities to score the pairs.
+
+### Selecting matches
+
+Now that we've scored the pairs, how do we pick which ones are matches?
+
+```r
+pair_blocking(df_a, df_b, blocking_var = "state") %>%
+  compare_pairs(by = c("name", "zip"), default_comparator = lcs()) %>%
+  score_problink() %>%
+  select_n_to_m()
+```
+
+```{r}
+m <- pair_blocking(df_a, df_b, on = "state") %>%
+  compare_pairs(on = c("name", "zip"), default_comparator = cmp_lcs()) %>%
+  problink_em(~ name + zip, data = .)
+
+
+pair_blocking(df_a, df_b, on = "state") %>%
+  compare_pairs(on = c("name", "zip"), default_comparator = cmp_lcs()) %>%
+  score_simple("score",
+               on = c("name", "zip"),
+               w1 = c(name = 12, zip = 3),
+               w0 = c(name = -8.25, zip = -2),
+               wna = 0
+               ) %>%
+  predict(m, pairs = ., add = TRUE) %>%
+  select_threshold("threshold", score = "weights", threshold = 10) %>%
+  select_greedy("weights", variable = "greedy", threshold = 0) %>%
+  select_n_to_m("weights", variable = "ntom", threshold = 0) %>%
+  arrange(.x, .y)
+```
+
+### Linking the data
+
+Now that we've selected the matching pairs we can link the data frames together.
+
+```r
+pair_blocking(df_a, df_b, blocking_var = "state") %>%
+  compare_pairs(by = c("name", "zip"), default_comparator = lcs()) %>%
+  score_problink() %>%
+  select_n_to_m() %>%
+  link()
+```
+  
+```{r}
+m <- pair_blocking(df_a, df_b, on = "state") %>%
+  compare_pairs(on = c("name", "zip"), default_comparator = cmp_lcs()) %>%
+  problink_em(~ name + zip, data = .)
+
+
+pair_blocking(df_a, df_b, on = "state") %>%
+  compare_pairs(on = c("name", "zip"), default_comparator = cmp_lcs()) %>%
+  score_simple("score",
+               on = c("name", "zip"),
+               w1 = c(name = 12, zip = 3),
+               w0 = c(name = -8.25, zip = -2),
+               wna = 0
+               ) %>%
+  predict(m, pairs = ., add = TRUE) %>%
+  select_threshold("threshold", score = "weights", threshold = 10) %>%
+  select_greedy("weights", variable = "greedy", threshold = 0) %>%
+  select_n_to_m("weights", variable = "ntom", threshold = 0) %>%
+  link(selection = "ntom") %>%
+  arrange(.x, .y)
+```
+
+#### Score then select or select then score?
+
+![](images/score-then-select-or-select-then-score.png){fig-align="left"}
+
+#### Putting it together
+
+During this chapter, you've cleaned up the `city` column of `zagat` using string similarity, as well as generated and compared pairs of restaurants from `zagat` and `fodors`. The end is near - all that's left to do is score and select pairs and link the data together, and you'll be able to begin your analysis in no time!
+
+`reclin` and `dplyr` are loaded and `zagat` and `fodors` are available.
+
+##### Instructions 1/3
+
+* Score the pairs of records probabilistically.
+
+```r
+# Create pairs
+pair_blocking(zagat, fodors, blocking_var = "city") %>%
+  # Compare pairs
+  compare_pairs(by = c("name", "addr"), default_comparator = jaro_winkler()) %>%
+  # Score pairs
+  score_problink()
+```
+
+```{r}
+zagat = read_rds("data/zagat.rds")
+fodors = read_rds("data/fodors.rds")
+
+m <- pair_blocking(zagat, fodors, on = "city") %>%
+  compare_pairs(on = c("name", "addr"), default_comparator = cmp_lcs()) %>%
+  problink_em(~ name + addr, data = .)
+
+
+pair_blocking(zagat, fodors, on = "city") %>%
+  compare_pairs(on = c("name", "addr"), default_comparator = cmp_lcs()) %>%
+  score_simple("score",
+               on = c("name", "addr"),
+               w1 = c(name = 12, addr = 3),
+               w0 = c(name = -8.25, addr = -2),
+               wna = 0
+               ) %>%
+  predict(m, pairs = ., add = TRUE) %>%
+  arrange(.x, .y)
+```
+
+##### Instructions 2/3
+
+* Select the pairs that are considered matches.
+
+```r
+# Create pairs
+pair_blocking(zagat, fodors, blocking_var = "city") %>%
+  # Compare pairs
+  compare_pairs(by = c("name", "addr"), default_comparator = jaro_winkler()) %>%
+  # Score pairs
+  score_problink() %>%
+  # Select pairs
+  select_n_to_m()
+```
+
+```{r}
+m <- pair_blocking(zagat, fodors, on = "city") %>%
+  compare_pairs(on = c("name", "addr"), default_comparator = cmp_lcs()) %>%
+  problink_em(~ name + addr, data = .)
+
+
+pair_blocking(zagat, fodors, on = "city") %>%
+  compare_pairs(on = c("name", "addr"), default_comparator = cmp_lcs()) %>%
+  score_simple("score",
+               on = c("name", "addr"),
+               w1 = c(name = 12, addr = 3),
+               w0 = c(name = -8.25, addr = -2),
+               wna = 0
+               ) %>%
+  predict(m, pairs = ., add = TRUE) %>%
+  select_threshold("threshold", score = "weights", threshold = 10) %>%
+  select_greedy("weights", variable = "greedy", threshold = 0) %>%
+  select_n_to_m("weights", variable = "ntom", threshold = 0) %>%
+  arrange(.x, .y)
+```
+
+
+##### Instructions 3/3
+
+* Link the two data frames together.
+
+```r
+# Create pairs
+pair_blocking(zagat, fodors, blocking_var = "city") %>%
+  # Compare pairs
+  compare_pairs(by = c("name", "addr"), default_comparator = jaro_winkler()) %>%
+  # Score pairs
+  score_problink() %>%
+  # Select pairs
+  select_n_to_m() %>%
+  # Link data 
+  link()
+```
+
+```{r}
+m <- pair_blocking(zagat, fodors, on = "city") %>%
+  compare_pairs(on = c("name", "addr"), default_comparator = cmp_jarowinkler()) %>%
+  problink_em(~ name + addr, data = .)
+
+
+pair_blocking(zagat, fodors, on = "city") %>%
+  compare_pairs(on = c("name", "addr"), default_comparator = cmp_jarowinkler()) %>%
+  score_simple("score",
+               on = c("name", "addr"),
+               w1 = c(name = 10, addr = 3),
+               w0 = c(name = -8.25, addr = -2),
+               wna = 0
+               ) %>%
+  predict(m, pairs = ., add = TRUE) %>%
+  select_threshold("threshold", score = "weights", threshold = 4) %>%
+  select_greedy("weights", variable = "greedy", threshold = 4) %>%
+  select_n_to_m("weights", variable = "ntom", threshold = 4) %>%
+  link(., selection = "ntom") %>%
+  arrange(.x, .y)
+```
+
+## Old way
+
+```r
+library(reclin)
+
+# generate all pairs
+pair_blocking(df_a, df_b)
+
+# blocking
+pair_blocking(df_a, cf_b, blocking_var = "state")
+
+# comparing pairs
+pair_blocking(df_a, cf_b, blocking_var = "state") %>%
+  compare_pairs(by = "name", default_comparator = lcs())
+
+# comparing multiple columns
+pair_blocking(df_a, cf_b, blocking_var = "state") %>%
+  compare_pairs(by = c("name", "zip), default_comparator = lcs())
+  
+# summing
+pair_blocking(df_a, cf_b, blocking_var = "state") %>%
+  compare_pairs(by = "name", default_comparator = lcs()) %>%
+  score_simsum()
+
+# scoring probabilistically
+reclin::pair_blocking(df_a, df_b, blocking_var = "state") %>%
+  compare_pairs(by = c("name", "zip"), default_comparator = lcs()) %>%
+  score_problink()
+
+# select pairs
+pair_blocking(df_a, df_b, blocking_var = "state") %>%
+  compare_pairs(by = c("name", "zip"), default_comparator = lcs()) %>%
+  score_problink() %>%
+  select_n_to_m()
+```
+
+## New way
+
+```{r}
+# library(data.table)
+library(reclin2)
+
+## Create the data frames
+# data("dfa", "dfb")
+# data("linkexample1", "linkexample2",)
+df_a <- data.frame(
+  name = c("Christine M. Conner", "Keaton Z Snyder", "Arthur Potts", "Maia Collier", "Atkins, Alice W."),
+  zip = c("10456", "15020", "07799", "07960", "10603"),
+  state = c("NY", "PA", "NJ", "NJ", "NY")
+)
+
+df_b <- data.frame(
+  name = c("Jerome A. Yates", "Garrison, Brenda", "Keaton Snyder", "Stuart, Bert F", "Hayley Peck"),
+  zip = c("11743", "08611", "15020", "12211", "19134"),
+  state = c("NY", "NJ", "PA", "NY", "PA")
+)
+
+# Convert the data frame to a data.table
+setDT(df_a)
+setDT(df_b)
+
+# Add an 'id' column
+df_a[, id := .I]
+df_b[, id := .I]
+
+
+## generate pairs that share a state
+pairs <- pair_blocking(df_a, df_b, on = "state")
+
+## compare generated pairs on similarity of name and zip
+pairs <- compare_pairs(pairs, on = c("name", "zip"))
+
+## score pairs
+# compute m- and u-probabilities
+m <- problink_em(~ name + zip, data = pairs)
+
+# score_simple seems to be closest to what datacamp used; in its most simple form
+# it computes the sum of the variables, can compute a weighted sum
+pairs <- score_simple(pairs, "simsum", on = c("name", "zip"))
+
+pairs <- predict(m, pairs = pairs, add = TRUE)
+
+## select pairs
+pairs <- select_threshold(pairs, "threshold", score = "weights", threshold = 5)
+
+# select pairs that meet or exceed the threshold
+pairs <- compare_vars(pairs, "name_truth", on_x = c("name", "zip"))
+
+# pairs <- compare_vars(pairs, "name_truth", on_x = "name")
+# table(pairs$truth, pairs$threshold)
+# pairs <- compare_vars(pairs, "zip_truth", on_x = "zip")
+# table(pairs$truth, pairs$threshold)
+
+# force one-to-one linkage
+pairs <- select_greedy(pairs, "weights", variable = "greedy", threshold = 0)
+# table(pairs$truth, pairs$threshold)
+pairs <- select_n_to_m(pairs, "weights", variable = "ntom", threshold = 0)
+# table(pairs$truth, pairs$threshold)
+
+# link the data!
+linked_data_set <- link(pairs, selection = "ntom")
+
+print(linked_data_set)
+```

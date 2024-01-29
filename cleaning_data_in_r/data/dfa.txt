@@ -1,0 +1,6 @@
+id                   name      zip  state
+ 1  "Christine M. Conner"  "10456"   "NY"
+ 2      "Keaton Z Snyder"  "15020"   "PA"
+ 3         "Arthur Potts"  "07799"   "NJ"
+ 4         "Maia Collier"  "07960"   "NJ"
+ 5     "Atkins, Alice W."  "10603"   "NY"

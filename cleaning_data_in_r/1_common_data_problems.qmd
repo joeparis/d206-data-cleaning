@@ -1,0 +1,575 @@
+---
+title: "Common Data Problems"
+subtitle: "Cleaning Data in R"
+format: html
+execute: 
+  echo: false
+---
+
+In this chapter, you'll learn how to overcome some of the most common dirty data problems. You'll convert data types, apply range constraints to remove future data points, and remove duplicated data points to avoid double-counting.
+
+## Why do we need clean data?
+
+DS workflow:
+
+access data --\> explore and process data --\> extract insights --\> report insights
+
+Dirty data is caused by both human and technical errors and will taint every step of the DS workflow the data is used in.
+
+GIGO
+
+## Data type constraints
+
+Ensure data in your DF have an appropriate type.
+
+### Checking data types
+
+| **Logical checking** - returns `TRUE`/`FALSE` | **`assertive` checking** - errors when `FALSE` |
+|------------------------------------|------------------------------------|
+| is.character()                                | assert_is_character()                          |
+| is.numeric()                                  | assert_is_numeric()                            |
+| is.logical()                                  | assert_is_logical()                            |
+| is.factor()                                   | assert_is_factor()                             |
+| is.Date()                                     | assert_is_Date()                               |
+| ...                                           | ...                                            |
+
+`assertive` is no longer supported. See [`assertr`](https://cran.r-project.org/web/packages/assertr/index.html) for a possible substitute (used below).
+
+### Character to number
+
+``` r
+library(stringr)
+
+# strip commas from vriables
+revenue_trimmed = str_remove(sales$revenue, ",")
+
+## convert to numeric
+as.numeric(revenue_trimmed)
+```
+
+Can be done in one shot:
+
+``` r
+# sales is a DF, creates a new column revenue_usd
+sales %>%
+  mutate(revenue_usd = as.numeric(str_remove(revenue, ",")))
+```
+
+### Watch out: factor to numeric
+
+``` r
+product_type  # is a factor
+```
+
+``` text
+1000 1000 3000 2000 3000
+Levels: 1000 2000 3000
+```
+
+``` r
+class(product_type)
+```
+
+``` text
+"factor"
+```
+
+``` r
+as.numeric(product_type)
+```
+
+``` text
+1 1 3 2 3
+```
+
+This is probably not what we were expecting and is due to the way factors are encoded in R.
+
+Instead, use `as.character` first, then `as.numeric`.
+
+```         
+as.numeric(as.character(product_type))
+```
+
+``` text
+1000 1000 3000 2000 3000
+```
+
+#### Converting data types
+
+Converting data types
+
+Throughout this chapter, you'll be working with San Francisco bike share ride data called `bike_share_rides`. It contains information on start and end stations of each trip, the trip duration, and some user information.
+
+Before beginning to analyze any dataset, it's important to take a look at the different types of columns you'll be working with, which you can do using `glimpse()`.
+
+In this exercise, you'll take a look at the data types contained in `bike_share_rides` and see how an incorrect data type can flaw your analysis.
+
+`dplyr` and `assertive` are loaded and `bike_share_rides` is available.
+
+##### Instructions 1/3
+
+-   Examine the data types of the columns of `bike_share_rides.`
+-   Get a summary of the `user_birth_year` column of `bike_share_rides`.
+
+```{r}
+pacman::p_load(tidyverse)
+pacman::p_load(assertr)
+# bike_share_rides <- readRDS(file.choose())
+bike_share_rides <- read_rds("data/bike_share_rides_ch1_1.rds")
+
+# Glimpse at bike_share_rides
+glimpse(bike_share_rides)
+
+# Summary of user_birth_year
+summary(bike_share_rides$user_birth_year)
+```
+
+##### Instructions 2/3
+
+**Question**
+
+The summary statistics of `user_birth_year` don't seem to offer much useful information about the different birth years in our dataset. Why do you think that is?
+
+**Possible answers**
+
+1.  The `user_birth_year` column is not of the correct type and should be converted to a `character.`
+2.  The `user_birth_year` column has an infinite set of possible values and should be converted to a `factor.`
+3.  The `user_birth_year` column represents groupings of data and should be converted to a `factor.`
+
+**Answer**
+
+3.  The `user_birth_year` column represents groupings of data and should be converted to a `factor.`
+
+##### Instructions 3/3
+
+-   Add a new column to `bike_share_rides` called `user_birth_year_fct`, which contains `user_birth_year`, converted to a factor.
+-   Assert that the `user_birth_year_fct` is a factor to confirm the conversion.
+
+```{r}
+# Convert user_birth_year to factor: user_birth_year_fct
+bike_share_rides <- bike_share_rides %>%
+  mutate(user_birth_year_fct = as.factor(bike_share_rides$user_birth_year))
+
+# Assert user_birth_year_fct is a factor
+# assert_is_factor(bike_share_rides$user_birth_year_fct)
+
+# pacman::p_load("assertions")
+# assert_factor_vector(bike_share_rides$user_birth_year_fct)
+
+verify(
+  bike_share_rides, has_class("user_birth_year_fct", class = "factor"),
+  success_fun = success_continue
+)
+
+bike_share_rides %>%
+  verify(has_class("user_birth_year_fct", class = "factor"),
+         success_fun = success_continue
+  )
+
+# Summary of user_birth_year_fct
+summary(bike_share_rides$user_birth_year_fct)
+```
+
+#### Trimming strings
+
+In the previous exercise, you were able to identify the correct data type and convert `user_birth_year` to the correct type, allowing you to extract counts that gave you a bit more insight into the dataset.
+
+Another common dirty data problem is having extra bits like percent signs or periods in numbers, causing them to be read in as `character`s. In order to be able to crunch these numbers, the extra bits need to be removed and the numbers need to be converted from `character` to `numeric`. In this exercise, you'll need to convert the `duration` column from `character` to `numeric`, but before this can happen, the word `"minutes"` needs to be removed from each value.
+
+`dplyr`, `assertive`, and `stringr` are loaded and `bike_share_rides` is available.
+
+##### Instructions
+
+-   Use `str_remove()` to remove `"minutes"` from the `duration` column of `bike_share_rides.` Add this as a new column called `duration_trimmed`.
+-   Convert the `duration_trimmed` column to a numeric type and add this as a new column called `duration_mins`.
+-   Glimpse at `bike_share_rides` and assert that the `duration_mins` column is numeric.
+-   Calculate the mean of `duration_mins`.
+
+```{r}
+bike_share_rides <- bike_share_rides %>%
+  mutate(
+    duration_trimmed = str_squish(str_remove(duration, "minutes")),
+    duration_mins = as.numeric(duration_trimmed)
+  )
+
+# glimpse(bike_share_rides)
+
+bike_share_rides %>%
+  verify(has_class("duration_mins", class = "numeric"),
+         success_fun = success_continue
+         ) %>%
+  glimpse()
+
+mean(bike_share_rides$duration_mins)
+```
+
+## Range constraints
+
+Valid values must be within a certain range. For example:
+
+-   SAT score: 400-1600
+-   Package weight: greater than 0lb/kg
+-   Adult heart rate: 60-100 beats/min
+
+### Finding out a range of values
+
+Movie ratings should be between 0 and 5. Look for out-of-range values with a histogram.
+
+```{r}
+titles <- c("A Beautiful Mind", "La Vita e Bella", "Amelie", "Meet the Parents", "Unbreakable", "Gone in Sixy Seconds")
+avg_ratings <- c(4.1, 4.3, 5.2, 3.5, 5.8, -1.3)
+
+movies <- data.frame(titles, avg_ratings)
+names(movies) <- c("title", "avg_rating")
+
+breaks <- c(
+  min(movies$avg_rating),  # min rating in dataset
+  0,                       # bottom of expected range
+  5,                       # top of expected range
+  max(movies$avg_rating)   # max rating in dataset
+)
+
+ggplot(movies, aes(avg_rating)) +
+  geom_histogram(breaks = breaks)
+
+# assert_valid_scores <- assert_create_chain(
+#   assert_create(
+#     function(title, rating) {{ rating >= 0 }},
+#     '{title} has an average rating of {rating} which is lower than the minimum of 0'
+#   ),
+#   assert_create(
+#     function(title, rating) {{ rating <= 5 }},
+#     '{title} has an average rating of {rating} which is higher than the maximum of 5'
+#   )
+# )
+# 
+# for (row in 1:nrow(movies)) {
+#   # t <- movies[row, "title"]
+#   # r <- movies[row, "avg_rating"]
+#   # print(paste(t, "has rating",  r))
+#   print(str_interp('${movies[row, "title"]} has rating ${movies[row, "avg_rating"]}'))
+# }
+# 
+# for (row in 1:nrow(movies)) {
+#   try({ assert_valid_scores(movies[row, "title"], movies[row, "avg_rating"]) })
+# }
+
+movies %>%
+  assert(within_bounds(0, 5), avg_rating, error_fun = error_df_return)
+```
+
+We can see now that there's one value below 0 and two values above 5 in our dataset.
+
+### Handling out of range values
+
+-   remove rows (do only when there are relatively few bad values to avoid introducing bias)
+-   tread as missing (`NA`)
+-   replace with range limit
+-   replace based on domain knowledge and/or knowledge of the dataset (mean, median, etc,)
+
+### Removing bad values
+
+```{r}
+movies %>%
+  filter(avg_rating >= 0, avg_rating <= 5) %>%
+  
+  ggplot(aes(avg_rating)) +
+    geom_histogram(breaks = breaks)
+```
+
+No more out-of-range-values,
+
+### Treat as missing
+
+Using `dplyr`'s `replace()`.
+
+```{r}
+movies %>%
+  # mutate(rating_miss = replace(avg_rating, avg_rating > 5 | avg_rating < 0, NA))
+  mutate(avg_rating = replace(avg_rating, avg_rating > 5 | avg_rating < 0, NA))
+```
+
+### Replace with min/max (or other reasonable value)
+
+```{r}
+movies %>%
+  mutate(avg_rating = replace(avg_rating, avg_rating < 0, 0)) %>%
+  mutate(avg_rating = replace(avg_rating, avg_rating > 5, 5))
+```
+
+``` r
+library(lubridate)
+
+movies <- movies %>%
+  filter(date_recorded <= today())
+```
+
+#### Ride duration constraints
+
+Values that are out of range can throw off an analysis, so it's important to catch them early on. In this exercise, you'll be examining the `duration_min` column more closely. Bikes are not allowed to be kept out for more than 24 hours, or 1440 minutes at a time, but issues with some of the bikes caused inaccurate recording of the time they were returned.
+
+In this exercise, you'll replace erroneous data with the range limit (1440 minutes), however, you could just as easily replace these values with `NA`s.
+
+`dplyr`, `assertive`, and `ggplot2` are loaded and `bike_share_rides` is available.
+
+##### Instructions 1/2
+
+-   Create a three-bin histogram of the `duration_min` column of `bike_share_rides` using `ggplot2` to identify if there is out-of-range data
+
+```{r}
+breaks <- c(
+  min(bike_share_rides$duration_mins),
+  0,
+  24 * 60,
+  max(bike_share_rides$duration_mins)
+)
+
+bike_share_rides %>%
+  ggplot(aes(duration_mins)) +
+  geom_histogram(breaks = breaks)
+```
+
+**Note:** the supplied version of `bike_share_rides_ch1_1.rds` does not have any observations that exceed the 1440 minute limit. Once again, datacamp does not give us the necessary data to work on.
+
+##### Instructions 2/2
+
+-   Replace the values of `duration_min` that are greater than `1440` minutes (24 hours) with `1440.` Add this to `bike_share_rides` as a new column called `duration_min_const`.
+-   Assert that all values of duration_min_const are between `0` and `1440.`
+
+```{r}
+# duration_min_const: replace vals of duration_min > 1440 with 1440
+bike_share_rides <- bike_share_rides %>%
+  mutate(duration_mins_const = replace(duration_mins, duration_mins > 1440, 1440))
+
+# Make sure all values of duration_min_const are between 0 and 1440
+# assert_all_are_in_closed_range(bike_share_rides$duration_mins_const, lower = 0, upper = 1440)
+
+bike_share_rides %>%
+  assert(within_bounds(0, 1440), duration_mins_const, success_fun = success_logical)
+```
+
+#### Back to the future
+
+Something has gone wrong and it looks like you have data with dates from the future, which is way outside of the date range you expected to be working with. To fix this, you'll need to remove any rides from the dataset that have a `date` in the future. Before you can do this, the `date` column needs to be converted from a `character` to a `Date`. Having these as `Date` objects will make it much easier to figure out which rides are from the future, since R makes it easy to check if one `Date` object is before (`<`) or after (`>`) another.
+
+`dplyr` and `assertive` are loaded and `bike_share_rides` is available.
+
+##### Instructions
+
+-   Convert the `date` column of `bike_share_rides` from `character` to the `Date` data type.
+-   Assert that all values in the `date` column happened sometime in the past and not in the future.
+-   Filter `bike_share_rides` to get only the rides from the past or today, and save this as `bike_share_rides_past.`
+-   Assert that the `date`s in `bike_share_rides_past` occurred only in the past.
+
+```{r}
+bike_share_rides <- bike_share_rides %>%
+  mutate(date = as.Date(date))
+
+today <- today()
+bike_share_rides_past %>%
+  verify(date <= today)
+
+bike_share_rides_past <- bike_share_rides %>%
+  filter(date <= today())
+
+today <- today()
+bike_share_rides_past %>%
+  verify(date <= today) %>%
+  verify(has_class("date", class = "Date"))
+```
+
+## Uniqueness constraints
+
+A duplicate is a data point that has the same values as another data point in all columns, or in most columns.
+
+Duplicates can arise from data entry errors or other human errors, from bugs, or design errors in data pipelines, but most commonly from joining together data from multiple sources.
+
+-   **full duplicate** - multiple rows with the same data in *every* column
+-   **partial duplicate** - only some (most) of the data is the same in multiple rows
+
+### Full duplicates
+
+Full duplicates can be found using R's built-in `duplicated` function.
+
+dplyr's `distinct` function will remove duplicated rows as well.
+
+```{r}
+credit_scores <- read_tsv("data/cs.tsv", show_col_types = FALSE)
+
+# duplicated(credit_scores)
+# 
+# str_interp("${sum(duplicated(credit_scores))} duplicated rows")
+# 
+# # filter(credit_scores, duplicated(credit_scores))
+# 
+# credit_scores_filtered <- credit_scores %>%
+#   filter(duplicated(.))
+# 
+# credit_scores_unique <- distinct(credit_scores)
+# 
+# credit_scores_unique %>% assert_rows(col_concat, is_uniq, "First name", "Last name", Address, "Credit score")
+
+if (sum(duplicated(credit_scores)) > 0) {
+  credit_scores_unique <- distinct(credit_scores)
+
+  credit_scores_unique %>% assert_rows(
+    col_concat, is_uniq, first_name, last_name, Address, credit_score
+  )
+} else {
+  credit_scores_unique <- credit_scores
+}
+```
+
+### Partial duplicates
+
+We still have partial duplicates in our data: rows 5 & 6 and 7 & 8
+
+We can use dplyr's `count` function to search for duplicated data across rows (in this case, rows with the same first and last names.
+
+```{r}
+# search for duplicate names
+dup_ids <- credit_scores %>%
+  # distinct() %>%
+  count(first_name, last_name) %>%
+  filter(n > 1)
+
+credit_scores %>%
+  filter(first_name %in% dup_ids$first_name, last_name %in% dup_ids$last_name) %>%
+  arrange(last_name)
+```
+
+### Handling partial duplicates: dropping
+
+One way to handle duplicates is to keep only one, dropping the rest
+
+`distinct` can be passed column names to match on
+
+`.keep_all` instructs `distinct` to keep all the columns, not just the ones we specified to match on
+
+```{r}
+foo <- credit_scores %>%
+  distinct(first_name, last_name, .keep_all = TRUE)
+```
+
+#### Handling partial duplicates: summarizing
+
+Summarize the differing values using statistical summary functions (`mean`, `max`, etc.)
+
+```{r}
+bar <- credit_scores %>%
+  group_by(first_name, last_name) %>%
+  mutate(mean_credit_score = mean(credit_score)) %>%
+  distinct(first_name, last_name, .keep_all = TRUE) %>%
+  select(-credit_score)
+  
+```
+
+#### Full duplicates
+
+You've been notified that an update has been made to the bike sharing data pipeline to make it more efficient, but that duplicates are more likely to be generated as a result. To make sure that you can continue using the same scripts to run your weekly analyses about ride statistics, you'll need to ensure that any duplicates in the dataset are removed first.
+
+When multiple rows of a data frame share the same values for all columns, they're *full duplicates* of each other. Removing duplicates like this is important, since having the same value repeated multiple times can alter summary statistics like the mean and median. Each ride, including its `ride_id` should be unique.
+
+`dplyr` is loaded and `bike_share_rides` is available.
+
+#####Instructions
+
+-   Get the total number of full duplicates in `bike_share_rides.`
+-   Remove all full duplicates from `bike_share_rides` and save the new data frame as `bike_share_rides_unique.`
+-   Get the total number of full duplicates in the new `bike_share_rides_unique` data frame.
+
+```{r}
+# Count the number of full duplicates
+sum(duplicated(bike_share_rides))
+
+# Remove duplicates
+bike_share_rides_unique <- distinct(bike_share_rides)
+
+# Count the full duplicates in bike_share_rides_unique
+sum(duplicated(bike_share_rides_unique))
+```
+
+#### Removing partial duplicates
+
+Now that you've identified and removed the full duplicates, it's time to check for partial duplicates. Partial duplicates are a bit tricker to deal with than full duplicates. In this exercise, you'll first identify any partial duplicates and then practice the most common technique to deal with them, which involves dropping all partial duplicates, keeping only the first.
+
+`dplyr` is loaded and `bike_share_rides` is available.
+
+##### Instructions 1/3
+
+-   Count the number of occurrences of each `ride_id.`
+-   Filter for `ride_id`s that occur multiple times.
+
+```{r}
+# Find duplicated ride_ids
+bike_share_rides %>% 
+  # Count the number of occurrences of each ride_id
+  count(ride_id) %>% 
+  # Filter for rows with a count > 1
+  filter(n > 1)
+```
+
+##### Instructions 2/3
+
+-   Remove full and partial duplicates from `bike_share_rides` based on `ride_id` only, keeping all columns.
+-   Store this as `bike_share_rides_unique`.
+
+```{r}
+# Find duplicated ride_ids
+bike_share_rides %>% 
+  count(ride_id) %>% 
+  filter(n > 1)
+
+# Remove full and partial duplicates
+bike_share_rides_unique <- bike_share_rides %>%
+  # Only based on ride_id instead of all cols
+  distinct(ride_id, .keep_all = TRUE)
+```
+
+##### Instructions 3/3
+
+-   Find the duplicated `ride_ids` in `bike_share_rides_unique`.
+
+```{r}
+# Find duplicated ride_ids
+bike_share_rides %>% 
+  count(ride_id) %>% 
+  filter(n > 1)
+
+# Remove full and partial duplicates
+bike_share_rides_unique <- bike_share_rides %>%
+  # Only based on ride_id instead of all cols
+  distinct(ride_id, .keep_all = TRUE)
+
+# Find duplicated ride_ids in bike_share_rides_unique
+bike_share_rides_unique %>%
+  # Count the number of occurrences of each ride_id
+  count(ride_id) %>%
+  # Filter for rows with a count > 1
+  filter(n > 1)
+```
+
+#### Aggregating partial duplicates
+
+Another way of handling partial duplicates is to compute a summary statistic of the values that differ between partial duplicates, such as mean, median, maximum, or minimum. This can come in handy when you're not sure how your data was collected and want an average, or if based on domain knowledge, you'd rather have too high of an estimate than too low of an estimate (or vice versa).
+
+`dplyr` is loaded and `bike_share_rides` is available.
+
+##### Instructions
+
+-   Group `bike_share_rides` by `ride_id` and `date`.
+-   Add a column called `duration_min_avg` that contains the mean ride duration for the row's `ride_id` and `date`.
+-   Remove duplicates based `on` ride_id and `date`, keeping all columns of the data frame.
+-   Remove the `duration_min` column.
+
+```{r}
+bike_share_rides %>%
+  # Group by ride_id and date
+  group_by(ride_id, date) %>%
+  # Add duration_min_avg column
+  mutate(duration_min_avg = min(duration_min) ) %>%
+  # Remove duplicates based on ride_id and date, keep all cols
+  distinct(ride_id, date, .keep_all = TRUE) %>%
+  # Remove duration_min column
+  select(-duration_min)
+```

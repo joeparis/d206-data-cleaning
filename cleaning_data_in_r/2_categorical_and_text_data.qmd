@@ -1,0 +1,518 @@
+---
+title: "Categorical and Text Data"
+subtitle: "Cleaning Data in R"
+format: html
+execute: 
+  echo: false
+---
+
+Categorical and text data can often be some of the messiest parts of a dataset due to their unstructured nature. In this chapter, you’ll learn how to fix whitespace and capitalization inconsistencies in category labels, collapse multiple categories into one, and reformat strings for consistency.
+
+## Membership constraints
+
+### Categorical variables
+
+Categorical variables have a fixed and known set of possible values.
+
+| Data                      | Example values         |
+|---------------------------|------------------------|
+| Marriage status           | `unmarried`, `married` |
+| Household income category | `0-20k`, `20-40k`, ... |
+| T-shirt size              | `S`, `M`, `L`, `XL`    |
+
+### Factors
+
+Behave like enums.
+
+Are stored as numbers with one number per category.
+
+| Data                      | Example values         | Numeric representation |
+|--------------------------|-----------------------|-----------------------|
+| Marriage status           | `unmarried`, `married` | `1`, `2`               |
+| Household income category | `0-20k`, `20-40k`, ... | `1`, `2`, ...          |
+| T-shirt size              | `S`, `M`, `L`, `XL`    | `1`, `2`, `3`, `4`     |
+
+#### Factor levels
+
+**Factor levels**: all the different possible values a factor can take.
+
+### Filtering joins review
+
+Recall that filtering joins are a type of join that keeps or removes observations from the first table, but doesn't add any new columns.
+
+![](images/filtering_joins.png){fig-align="left"}
+
+```{r}
+study_data = read_csv("data/study_data.csv")
+blood_types = read.csv("data/blood_types.csv")
+```
+
+### Finding non-members
+
+To find invalid blood types in our study data, we want to find all the blood types in study_data that are NOT in the blood_types data frame.
+
+![](images/members.png){fig-align="left"}
+
+We can use dplyr's `anti_join` function.
+
+```{r}
+study_data %>%
+  anti_join(blood_types, by = "blood_type")
+```
+
+To remove the invalid blood types from our study_data, we want to find all the rows with a blood type in the official blood_types data frame.
+
+We can use dplyr's `semi_join` function.
+
+```{r}
+study_data %>%
+  semi_join(blood_types, by = "blood_type")
+```
+
+#### Not a member
+
+Now that you've practiced identifying membership constraint problems, it's time to fix these problems in a new dataset. Throughout this chapter, you'll be working with a dataset called `sfo_survey`, containing survey responses from passengers taking flights from San Francisco International Airport (SFO). Participants were asked questions about the airport's cleanliness, wait times, safety, and their overall satisfaction.
+
+There were a few issues during data collection that resulted in some inconsistencies in the dataset. In this exercise, you'll be working with the `dest_size` column, which categorizes the size of the destination airport that the passengers were flying to. A data frame called `dest_sizes` is available that contains all the possible destination sizes. Your mission is to find rows with invalid `dest_sizes` and remove them from the data frame.
+
+`dplyr` has been loaded and `sfo_survey` and `dest_sizes` are available.
+
+#####Instructions 1/4
+
+-   Count the number of occurrences of each `dest_size` in `sfo_survey`.
+
+```{r}
+# again, we are only provided with the already-sanitized data!
+sfo_survey = read_rds("data/sfo_survey_ch2_1.rds")
+dest_sizes = read_csv("data/dest_sizes.csv")
+
+sfo_survey %>%
+  count(dest_size)
+
+# Count the number of occurrences of dest_size
+sfo_survey %>%
+  count(dest_size)
+```
+
+##### Instructions 2/4
+
+**Question**
+
+Take a closer look at your output. Which `dest_size` values appear to violate membership constraints?
+
+**Possible answers**
+
+1.  "huge", "Small", "Large ", and "Hub".
+2.  "huge", " Small ", "Large ", and " Hub".
+3.  "Small", "Medium", "Large", and "Hub".
+
+**Answer** 2. "huge", " Small ", "Large ", and " Hub".
+
+##### Instructions 3/4
+
+-   Use the correct type of filtering join on the `sfo_survey` data frame and the `dest_sizes` data frame to get the rows of `sfo_survey` with invalid `dest_size` values.
+-   Get the `id`, `airline`, `destination`, and `dest_size` columns.
+
+```{r}
+# Find bad dest_size rows
+sfo_survey %>% 
+  # Join with dest_sizes data frame to get bad dest_size rows
+  anti_join(dest_sizes, by = "dest_size") %>%
+  # Select id, airline, destination, and dest_size cols
+  select(id, airline, destination, dest_size)
+```
+
+##### Instructions 4/4
+
+-   Use the correct filtering join on `sfo_survey` and `dest_sizes` to get the rows of `sfo_survey` that have a valid `dest_size`.
+-   Count the number of times that each `dest_size` occurs to make sure there are no invalid values left behind.
+
+```{r}
+# Remove bad dest_size rows
+sfo_survey %>% 
+  # Join with dest_sizes
+  semi_join(dest_sizes, by = "dest_size") %>%
+  # Count the number of each dest_size
+  count(dest_size)
+```
+
+## Categorical data problems
+
+### Correcting categorical data problems
+
+Types of categorical data problems include:
+
+-   inconsistency (capitalization, abbreviation, etc.)
+-   having too many categories (so that some categories have very few members)
+
+![](images/animal_df.png){fig-align="left"}
+
+``` r
+animal %>%
+  count(type)
+```
+
+``` text
+type               n
+" mammal "         1
+"amphibian"        2
+"bird"            20
+"bug"              1
+"fish"             2
+"invertebrate"     1
+"mammal"          38
+"MAMMAL"           1
+"Mammal "          1
+"reptile"          1
+```
+
+To fix the case inconsistency we can use the `str_to_lower` function from stringr.
+
+``` r
+library(stringr)
+
+animals %>%
+  mutate(type_lower = str_to_lower(type)) %>%
+  count(type_lower)
+```
+
+![](images/animal_df_fixed_cap.png){fig-align="left"}
+
+If we `count` the `type_lower` category we will see that there are 9 instead of 10 as "MAMMAL" was converted to "mammal".
+
+To fix the white space inconsistency we can use the `str_trim` function from stringr.
+
+``` r
+animals %>%
+  mutate(type_trimmed = str_trim(type_lower)) %>%
+  count(type_trimmed)
+```
+
+![](images/animal_df_trimmed.png){fig-align="left"}
+
+We see there's only one mammal category so all mammals have now been mapped to the same category.
+
+We have too many categories (many with 1 element each).
+
+``` text
+type_trimmed     n
+mammal          41
+bird            20
+amphibian        2
+fish             2
+bug              1
+invertebrate     1
+reptile          1
+```
+
+Solve by collapsing these categories into a new, broader category.
+
+``` r
+library(forcats)
+
+other_categories = c("amphibian", "fish", "bug", "invertebrate", "reptile")
+
+
+animals %>%
+  mutate(type_collapsed - fct_collapse(type_trimmed, other = other_categories))
+```
+
+![](images/animal_df_collapsed.png){fig-align="left"}
+
+``` r
+animals %>%
+  count(type_collapsed)
+```
+
+``` text
+type_collapsed       n
+<fct>            <int>
+other                7
+bird                20
+mammal              41
+```
+
+#### Identifying inconsistency
+
+In the video exercise, you learned about different kinds of inconsistencies that can occur within categories, making it look like a variable has more categories than it should.
+
+In this exercise, you'll continue working with the `sfo_survey` dataset. You'll examine the `dest_size` column again as well as the `cleanliness` column and determine what kind of issues, if any, these two categorical variables face.
+
+`dplyr` and is loaded and `sfo_survey` is available.
+
+##### Instructions 1/4
+
+-   Count the number of occurrences of each category of the `dest_size` variable of `sfo_survey`.
+
+```{r}
+# Count dest_size
+sfo_survey %>%
+  count(dest_size)
+```
+
+##### Instructions 2/4
+
+**Question**
+
+Select the statement that most accurately describes the categories in the `dest_size` variable of `sfo_survey`.
+
+**Possible answers**
+
+1.  The categories in `dest_size` have no inconsistencies.
+2.  The categories in `dest_size` have inconsistent capitalization.
+3.  The categories in `dest_size` have inconsistent white space.
+4.  The categories in `dest_size` have inconsistent capitalization and white space.
+
+**Answer**
+
+3.  The categories in `dest_size` have inconsistent white space.
+
+##### Instructions 3/4
+
+-   Count the number of occurrences of each category of the cleanliness variable of `sfo_survey`.
+
+```{r}
+# Count cleanliness
+sfo_survey %>%
+  count(cleanliness)
+```
+
+##### Instructions 4/4
+
+**Question**
+
+Select the statement that most accurately describes the categories in the cleanliness variable of `sfo_survey`.
+
+**Possible answers** 1. The categories in `cleanliness` have no inconsistencies. 2. The categories in `cleanliness` have inconsistent capitalization. 3. The categories in `cleanliness` have inconsistent white space. 4. The categories in `cleanliness` have inconsistent capitalization and white space.
+
+**Answer**
+
+2.  The categories in `cleanliness` have inconsistent capitalization.
+
+#### Correcting inconsistency
+
+Now that you've identified that `dest_size` has whitespace inconsistencies and `cleanliness` has capitalization inconsistencies, you'll use the new tools at your disposal to fix the inconsistent values in `sfo_survey` instead of removing the data points entirely, which could add bias to your dataset if more than 5% of the data points need to be dropped.
+
+`dplyr` and `stringr` are loaded and `sfo_survey` is available.
+
+##### Instructions
+
+-   Add a column to `sfo_survey` called `dest_size_trimmed` that contains the values in the `dest_size` column with all leading and trailing whitespace removed.
+-   Add another column called `cleanliness_lower` that contains the values in the `cleanliness` column converted to all lowercase.
+-   Count the number of occurrences of each category in `dest_size_trimmed`.
+-   Count the number of occurrences of each category in `cleanliness_lower`.
+
+```{r}
+# Add new columns to sfo_survey
+sfo_survey <- sfo_survey %>%
+  # dest_size_trimmed: dest_size without whitespace
+  mutate(dest_size_trimmed = str_trim(dest_size),
+         # cleanliness_lower: cleanliness converted to lowercase
+         cleanliness_lower = str_to_lower(cleanliness))
+
+# Count values of dest_size_trimmed
+sfo_survey %>%
+  count(dest_size_trimmed)
+
+# Count values of cleanliness_lower
+sfo_survey %>%
+  count(cleanliness_lower)
+```
+
+####Collapsing categories
+
+One of the tablets that participants filled out the `sfo_survey` on was not properly configured, allowing the response for `dest_region` to be free text instead of a dropdown menu. This resulted in some inconsistencies in the `dest_region` variable that you'll need to correct in this exercise to ensure that the numbers you report to your boss are as accurate as possible.
+
+`dplyr` and `forcats` are loaded and `sfo_survey` is available.
+
+##### Instructions 1/3
+
+-   Count the categories of `dest_region`.
+
+```{r}
+# Count categories of dest_region
+sfo_survey %>%
+  count(dest_region)
+```
+
+##### Instructions 2/3
+
+**Question**
+
+From your output from step 1, which categories need to be collapsed? Possible answers
+
+1.  "EU" and "Europ" need to be collapsed to "Europe".
+2.  "EU", "eur", and "Europ" need to be collapsed to "Europe".
+3.  "East US", "Midwest US", and "West US" need to be collapsed to "US".
+4.  "Asia" and "Central/South America" should be collapsed to "Asia and Central/South America".
+
+**Answer**
+
+2.  "EU", "eur", and "Europ" need to be collapsed to "Europe".
+
+##### Instructions 3/3
+
+-   Create a vector called `europe_categories` containing the three values of `dest_region` that need to be `collapsed.`
+-   Add a new column to sfo_survey called `dest_region_collapsed` that contains the values from the `dest_region` column, except the categories stored in `europe_categories` should be collapsed to Europe.
+-   Count the categories of `dest_region_collapsed.`
+
+```{r}
+# Categories to map to Europe
+europe_categories <- c("EU", "Europ", "eur")
+
+# Add a new col dest_region_collapsed
+sfo_survey %>%
+  # Map all categories in europe_categories to Europe
+  mutate(dest_region_collapsed = fct_collapse(dest_region, 
+                                     Europe = europe_categories)) %>%
+  # Count categories of dest_region_collapsed
+  count(dest_region_collapsed)
+```
+
+## Cleaning text data
+
+Text data is common but can be difficult as it is unstructured.
+
+-   formatting inconsistency (503-867-5309 vs 5038675309)
+-   information inconsistency (+1 503-867-5309 vs 503-867-5309)
+-   invalid data (503-867-5)
+
+```{r}
+customers = read_csv("data/customers.csv")
+
+customers
+```
+
+```{r}
+# find all rows with hyphens in the credit_card column
+str_detect(customers$credit_card, "-")
+```
+
+```{r}
+# isolate all rows with hyphens in the credit_card column
+customers %>%
+  filter(str_detect(credit_card, "-"))
+```
+
+```{r}
+# replace all hyphens in the credit_card column with a space
+customers %>%
+  mutate(credit_card_spaces = str_replace_all(credit_card, "-", " "))
+```
+
+Alternately, remove all hyphens and spaces.
+
+```{r}
+credit_card_clean <- customers$credit_card %>%
+  str_remove_all("-") %>%
+  str_remove_all(" ")
+
+customers %>%
+  mutate(credit_card = credit_card_clean)
+```
+
+```{r}
+# find invalid credit cards
+customers %>%
+  filter(str_length(credit_card) != 16)
+
+# or filter out invalid credit cards
+customers %>%
+  filter(str_length(credit_card) == 16)
+```
+
+### More complex text problems
+
+Often require regular expressions.
+
+`stringr` functions use regexs.
+
+Searching for or replacing regex special chars requires using `fixed()`.
+
+#### Detecting inconsistent text data
+
+You've recently received some news that the customer support team wants to ask the SFO survey participants some follow-up questions. However, the auto-dialer that the call center uses isn't able to parse all of the phone numbers since they're all in different formats. After some investigation, you found that some phone numbers are written with hyphens (`-`) and some are written with parentheses (`(`,`)`). In this exercise, you'll figure out which phone numbers have these issues so that you know which ones need fixing.
+
+`dplyr` and `stringr` are loaded, and `sfo_survey` is available.
+
+##### Instructions 1/2
+
+-   Filter for rows with phone numbers that contain `"-"`s.
+
+```{r}
+# Filter for rows with "-" in the phone column
+sfo_survey %>%
+  filter(str_detect(phone, "-"))
+```
+
+##### Instructions 2/2
+
+-   Filter for rows with phone numbers that contain "`(`", or "`)`". Remember to use `fixed()` when searching for parentheses.
+
+```{r}
+# Filter for rows with "(" or ")" in the phone column
+sfo_survey %>%
+  filter(str_detect(phone, fixed("(")) | str_detect(phone, fixed(")")))
+```
+
+#### Replacing and removing
+
+In the last exercise, you saw that the `phone` column of `sfo_survey` is plagued with unnecessary parentheses and hyphens. The customer support team has requested that all phone numbers be in the format `"123 456 7890"`. In this exercise, you'll use your new `stringr` skills to fulfill this request.
+
+`dplyr` and `stringr` are loaded and `sfo_survey` is available.
+
+##### Instructions 1/3
+
+-   Remove opening and closing parentheses from the `phone` column. Store this as a variable called `phone_no_parens`. Remember to use `fixed()`!
+
+```{r}
+# Remove parentheses from phone column
+phone_no_parens <- sfo_survey$phone %>%
+  # Remove "("s
+  str_remove_all(fixed("(")) %>%
+  # Remove ")"s
+  str_remove_all(fixed(")"))
+```
+
+##### Instructions 2/3
+
+-   Add a new column to `sfo_survey` called `phone_no_parens` that contains the contents of `phone_no_parens.`
+
+```{r}
+# Add phone_no_parens as column
+sfo_survey %>%
+  mutate(phone_no_parens)
+```
+
+##### Instructions 3/3
+
+8 Create a new column of `sfo_survey` called `phone_clean` containing the values of `phone_no_parens` with all hyphens replaced with spaces.
+
+```{r}
+# Add phone_no_parens as column
+sfo_survey %>%
+  mutate(phone_no_parens = phone_no_parens,
+  # Replace all hyphens in phone_no_parens with spaces
+         phone_clean = str_replace_all(phone_no_parens, "-", " "))
+```
+
+#### Invalid phone numbers
+
+The customer support team is grateful for your work so far, but during their first day of calling participants, they ran into some phone numbers that were invalid. In this exercise, you'll remove any rows with invalid phone numbers so that these faulty numbers don't keep slowing the team down.
+
+`dplyr` and `stringr` are loaded and `sfo_survey` is available.
+
+##### Instructions
+
+-   Examine the invalid `phone` numbers by filtering for numbers whose length is not equal to 12.
+-   Remove the rows with invalid numbers by filtering for numbers with a length of exactly 12.
+
+```{r}
+# Check out the invalid numbers
+sfo_survey %>%
+  filter(str_length(phone) != 12)
+
+# Remove rows with invalid numbers
+sfo_survey %>%
+  filter(str_length(phone) == 12)
+```
