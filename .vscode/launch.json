@@ -6,7 +6,15 @@
             "request": "launch",
             "program": "${file}",
             "cwd": "${fileDirname}",
-            "justMyCode": false
+            "justMyCode": true,
+        },
+        {
+            "name": "Python Debugger: all Python Files",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "cwd": "${fileDirname}",
+            "justMyCode": false,
         }
     ]
 }
