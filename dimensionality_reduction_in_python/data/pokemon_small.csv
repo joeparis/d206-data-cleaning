@@ -1,0 +1,6 @@
+Name,Type,HP,Attack,Defense,Speed,Generation
+Bulbasaur,Grass,45,49,49,45,1
+Ivysaur,Grass,60,62,63,60,1
+Venusaur,Grass,80,82,83,80,1
+Charmander,Fire,39,52,43,65,1
+Charmeleon,Fire,58,64,58,80,1
