@@ -31,7 +31,7 @@ A standard cut-off value for finding outliers are $Z \pm 3$ or more (if the dist
 
 Z-scores tend to be used mainly in the context of the normal curve, and their interpretation based on the standard normal table. However, Z-scores are not limited to distributions that approximate the normal curve.
 
-![Alt text](../images/z_score.png)
+![Alt text](images/z_score.png)
 
 ### Box Plots
 
@@ -39,7 +39,7 @@ Box plots are useful as they provide a visual summary of the data to quickly ide
 
 Values that fall outside the two inner fences (minimum and maximum) are outliers.
 
-![Alt text](../images/boxplot.png)
+![Alt text](images/boxplot.png)
 
 ### Histograms
 
@@ -49,7 +49,7 @@ Histograms emphasize the existence of outliers. Look for isolated bars.
 
 Are good for identifying egregious outliers (those that are well outside the typical).
 
-![Alt text](../images/histogram.png)
+![Alt text](images/histogram.png)
 
 ### Computing Z-scores in Python
 
@@ -118,8 +118,7 @@ income_query = test_data.query('Income < 4000)
 income_query.info()
 ```
 
-![Alt text](../images/python_outliers.png)
-
+![alt text](images/python_outliers.png)
 ### Answering These Questions in R
 
 Again, start with a box plot.
@@ -130,7 +129,7 @@ income_query <- test_data[which(test_data$Income < 4000), ]
 str(income_query)
 ```
 
-![Alt text](../images/r_outliers.png)
+![Alt text](images/r_outliers.png)
 
 ### Methods of Treating Outliers
 
